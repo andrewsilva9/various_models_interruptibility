@@ -22,7 +22,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.externals import joblib
 
 
-blank_image = np.ones((1080,1920,3), np.uint8) * 255
+blank_image = np.ones((1080, 1920, 3), np.uint8) * 255
 
 sdir = os.path.join(os.getcwd(), 'collections')
 adir = os.path.join(os.getcwd(), 'sid_pickle_out')
@@ -335,10 +335,7 @@ def plot_angles():
     plt.show()
 
 
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
+def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
@@ -352,6 +349,7 @@ def plot_confusion_matrix(cm, classes,
 
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        cm = np.around(cm, decimals=2)
         print("Normalized confusion matrix")
     else:
         print('Confusion matrix, without normalization')
@@ -369,7 +367,7 @@ def plot_confusion_matrix(cm, classes,
     plt.xlabel('Predicted label')
 
 
-def train_rel_cpm():
+def train_rel_cpm(model_name, use_prior, clf):
     annots_dir = '/Users/andrewsilva/my_rel_data/'
     X = []
     Y = []
@@ -441,7 +439,8 @@ def train_rel_cpm():
                         new_input_data[26] += 1
                     else:
                         new_input_data[27] += 1
-                new_input_data.append(last_value)
+                if use_prior:
+                    new_input_data.append(last_value)
                 last_value = label
                 X.append(new_input_data)
                 Y.append(label)
@@ -451,11 +450,8 @@ def train_rel_cpm():
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
 
-    # clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
-    clf = MLPClassifier(max_iter=40000, tol=1e-4)
-    # clf = KNeighborsClassifier()
     clf.fit(X_train, y_train)
-    joblib.dump(clf, 'mlp_priors.pkl')
+    joblib.dump(clf, model_name)
     # clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     class_names = ['1', '2', '3', '4']
@@ -479,7 +475,7 @@ def train_rel_cpm():
     return scaler
 
 
-def train_raw_cpm():
+def train_raw_cpm(model_name, use_prior, clf):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed'
     X = []
     Y = []
@@ -553,21 +549,19 @@ def train_raw_cpm():
                         new_input_data[28] += 1
                     else:
                         new_input_data[29] += 1
-                # new_input_data.append(last_value)
+                if use_prior:
+                    new_input_data.append(last_value)
                 last_value = label
                 X.append(new_input_data)
                 Y.append(label)
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
     scaler = StandardScaler()
     scaler.fit(X_train)
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
 
-    clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
-    # clf = MLPClassifier(max_iter=40000, tol=1e-4)
-    # clf = KNeighborsClassifier()
     clf.fit(X_train, y_train)
-    joblib.dump(clf, 'random_forest_raw_no_prior.pkl')
+    joblib.dump(clf, model_name)
     # clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     class_names = ['1', '2', '3', '4']
@@ -591,14 +585,14 @@ def train_raw_cpm():
     return scaler
 
 
-def test_temporal_model_raw(scaler):
+def test_temporal_model_raw(scaler, model_name, use_prior):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed/'
     true_y = []
     pred_y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
                 'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
                 'objects']
-    clf = joblib.load('random_forest_raw_no_prior.pkl')
+    clf = joblib.load(model_name)
     for filename in os.listdir(annots_dir):
         af = open(os.path.join(annots_dir, filename), 'rb')
         annotation = pickle.load(af)
@@ -666,7 +660,8 @@ def test_temporal_model_raw(scaler):
                         new_input_data[28] += 1
                     else:
                         new_input_data[29] += 1
-                # new_input_data.append(last_value)
+                if use_prior:
+                    new_input_data.append(last_value)
                 new_input_data = np.array(new_input_data).reshape((1, -1))
                 new_input_data = scaler.transform(new_input_data)
                 true_y.append(true_label)
@@ -693,14 +688,14 @@ def test_temporal_model_raw(scaler):
     plt.show()
 
 
-def test_temporal_model_rel(scaler):
+def test_temporal_model_rel(scaler, model_name, use_prior):
     annots_dir = '/Users/andrewsilva/my_rel_data/'
     true_y = []
     pred_y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
                 'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
                 'objects']
-    clf = joblib.load('mlp_priors.pkl')
+    clf = joblib.load(model_name)
     for filename in os.listdir(annots_dir):
         af = open(os.path.join(annots_dir, filename), 'rb')
         annotation = pickle.load(af)
@@ -766,9 +761,10 @@ def test_temporal_model_rel(scaler):
                         new_input_data[26] += 1
                     else:
                         new_input_data[27] += 1
-                new_input_data.append(last_value)
-                new_input_data = scaler.transform(new_input_data)
+                if use_prior:
+                    new_input_data.append(last_value)
                 new_input_data = np.reshape(new_input_data, (1, -1))
+                new_input_data = scaler.transform(new_input_data)
                 true_y.append(true_label)
                 prediction = clf.predict(new_input_data)
                 last_value = prediction
@@ -793,7 +789,7 @@ def test_temporal_model_rel(scaler):
     plt.show()
 
 
-def train_no_cpm():
+def train_no_cpm(model_name, use_prior, clf):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed'
     X = []
     Y = []
@@ -847,7 +843,8 @@ def train_no_cpm():
                         new_input_data[8] += 1
                     else:
                         new_input_data[9] += 1
-                # new_input_data.append(last_value)
+                if use_prior:
+                    new_input_data.append(last_value)
                 last_value = label
                 X.append(new_input_data)
                 Y.append(label)
@@ -857,11 +854,8 @@ def train_no_cpm():
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
 
-    clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
-    # clf = MLPClassifier(max_iter=40000, tol=1e-4)
-    # clf = KNeighborsClassifier()
     clf.fit(X_train, y_train)
-    joblib.dump(clf, 'random_forest_no_cpm_no_prior.pkl')
+    joblib.dump(clf, model_name)
     # clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     class_names = ['1', '2', '3', '4']
@@ -885,14 +879,14 @@ def train_no_cpm():
     return scaler
 
 
-def test_temporal_model_no_cpm(scaler):
+def test_temporal_model_no_cpm(scaler, model_name, use_prior):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed/'
     true_y = []
     pred_y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
                 'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
                 'objects']
-    clf = joblib.load('random_forest_no_cpm_no_prior.pkl')
+    clf = joblib.load(model_name)
     for filename in os.listdir(annots_dir):
         af = open(os.path.join(annots_dir, filename), 'rb')
         annotation = pickle.load(af)
@@ -940,7 +934,8 @@ def test_temporal_model_no_cpm(scaler):
                         new_input_data[8] += 1
                     else:
                         new_input_data[9] += 1
-                # new_input_data.append(last_value)
+                if use_prior:
+                    new_input_data.append(last_value)
                 new_input_data = np.array(new_input_data).reshape((1, -1))
                 new_input_data = scaler.transform(new_input_data)
                 true_y.append(true_label)
@@ -972,5 +967,10 @@ if __name__ == '__main__':
         adir = sys.argv[1]
     # change_to_relations()
     # plot_angles()
-    scaler = train_no_cpm()
-    test_temporal_model_no_cpm(scaler)
+    model_name = 'random_forest_no_cpm_prior.pkl'
+    use_prior = True
+    clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
+    # clf = MLPClassifier(max_iter=40000, tol=1e-4)
+    # clf = KNeighborsClassifier()
+    scaler = train_no_cpm(model_name, use_prior, clf)
+    test_temporal_model_no_cpm(scaler, model_name, use_prior)
