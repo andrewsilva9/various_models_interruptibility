@@ -17,12 +17,20 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
+from sklearn.metrics import confusion_matrix, f1_score
 from sklearn.externals import joblib
 
 
 blank_image = np.ones((1080, 1920, 3), np.uint8) * 255
+
+
+def non_shuffling_train_test_split(X, y, test_size=0.2):
+    i = int((1 - test_size) * X.shape[0]) + 1
+    X_train, X_test = np.split(X, [i])
+    y_train, y_test = np.split(y, [i])
+    return X_train, X_test, y_train, y_test
+
 
 sdir = os.path.join(os.getcwd(), 'collections')
 adir = os.path.join(os.getcwd(), 'sid_pickle_out')
@@ -367,7 +375,7 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.xlabel('Predicted label')
 
 
-def train_rel_cpm(model_name, use_prior, clf):
+def train_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     annots_dir = '/Users/andrewsilva/my_rel_data/'
     X = []
     Y = []
@@ -381,6 +389,14 @@ def train_rel_cpm(model_name, use_prior, clf):
         for person in annotation:
             last_value = -1
             sorted_ann = sorted(annotation[person], key = lambda x: x['timestamp'])
+            # one_back = []
+            # two_back = []
+            # three_back = []
+            # for i in range(29):
+            #     one_back.append(-1)
+            #     two_back.append(-1)
+            #     three_back.append(-1)
+
             for piece in sorted_ann:
                 new_input_data = []
                 for key, value in piece.iteritems():
@@ -392,6 +408,171 @@ def train_rel_cpm(model_name, use_prior, clf):
                 if label == 0:
                     last_value = -1
                     continue
+                new_input_data.append(piece['right_wrist_angle'])       # 0
+                new_input_data.append(piece['right_elbow_angle'])       # 1
+                new_input_data.append(piece['left_wrist_angle'])        # 2
+                new_input_data.append(piece['left_elbow_angle'])        # 3
+                new_input_data.append(piece['shoulder_vec_x'])          # 4
+                new_input_data.append(piece['shoulder_vec_y'])          # 5
+                new_input_data.append(piece['left_eye_angle'])          # 6
+                new_input_data.append(piece['right_eye_angle'])         # 7
+                new_input_data.append(piece['eye_vec_x'])               # 8
+                new_input_data.append(piece['eye_vec_y'])               # 9
+                new_input_data.append(piece['right_shoulder_angle'])    # 10
+                new_input_data.append(piece['left_shoulder_angle'])     # 11
+                new_input_data.append(piece['nose_vec_y'])              # 12
+                new_input_data.append(piece['nose_vec_x'])              # 13
+                new_input_data.append(piece['left_arm_vec_x'])          # 14
+                new_input_data.append(piece['left_arm_vec_y'])          # 15
+                new_input_data.append(piece['right_arm_vec_x'])         # 16
+                new_input_data.append(piece['right_arm_vec_y'])         # 17
+                new_input_data.append(piece['gaze'])                    # 18
+                new_input_data.append(0)                                # book 19
+                new_input_data.append(0)                                # bottle 20
+                new_input_data.append(0)                                # bowl 21
+                new_input_data.append(0)                                # cup 22
+                new_input_data.append(0)                                # laptop 23
+                new_input_data.append(0)                                # cell phone 24
+                new_input_data.append(0)                                # blocks 25
+                new_input_data.append(0)                                # tablet 26
+                new_input_data.append(0)                                # unknown 27
+                for item in piece['objects']:
+                    if item == 'book':
+                        new_input_data[19] += 1
+                    elif item == 'bottle':
+                        new_input_data[20] += 1
+                    elif item == 'bowl':
+                        new_input_data[21] += 1
+                    elif item == 'cup':
+                        new_input_data[22] += 1
+                    elif item == 'laptop':
+                        new_input_data[23] += 1
+                    elif item == 'cell phone':
+                        new_input_data[24] += 1
+                    elif item == 'blocks':
+                        new_input_data[25] += 1
+                    elif item == 'tablet':
+                        new_input_data[26] += 1
+                    else:
+                        new_input_data[27] += 1
+                if use_prior:
+                    if np.random.rand() > dropout_val:
+                        new_input_data.append(last_value)
+                    else:
+                        new_input_data.append(-1)
+
+                # holder = new_input_data[:]
+                # for element in one_back:
+                #     new_input_data.append(element)
+                # for element in two_back:
+                #     new_input_data.append(element)
+                # for element in three_back:
+                #     new_input_data.append(element)
+                # three_back = two_back[:]
+                # two_back = one_back[:]
+                # one_back = holder[:]
+
+                last_value = label
+                X.append(new_input_data)
+                Y.append(label)
+    X = np.array(X)
+    Y = np.array(Y)
+    X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=0.2)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    clf.fit(X_train, y_train)
+    joblib.dump(clf, model_name)
+    # VISUALIZE FEATURE IMPORTANCE
+    # importances = clf.feature_importances_
+    # std = np.std([tree.feature_importances_ for tree in clf.estimators_],
+    #              axis=0)
+    # indices = np.argsort(importances)[::-1]
+    #
+    # # Print the feature ranking
+    # print("Feature ranking:")
+    # X = np.array(X)
+    # for f in range(X.shape[1]):
+    #     print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
+    #
+    # # Plot the feature importances of the forest
+    # plt.figure()
+    # plt.title("Feature importances")
+    # plt.bar(range(X.shape[1]), importances[indices],
+    #         color="r", yerr=std[indices], align="center")
+    # plt.xticks(range(X.shape[1]), indices)
+    # plt.xlim([-1, X.shape[1]])
+    # plt.show()
+    # END FEATURE IMPORTANCE VISUALIZATION
+    # TODO manual k-fold stuff, predict single file and propagate predictions.
+    last_prediction = -1
+    y_pred = []
+    for sample in X_test:
+        # predict, replace element[28] with prediction.
+        if use_prior:
+            sample[-1] = last_prediction
+        sample = np.reshape(sample, (1, -1))
+        prediction = clf.predict(sample)
+        last_prediction = prediction
+        y_pred.append(prediction)
+
+    # y_pred2 = clf.predict(X_test)
+    # print y_pred
+    # print y_pred2
+    class_names = ['1', '2', '3', '4']
+    # my_matrix = confusion_matrix(y_test, y_pred)
+    # print my_matrix
+    # Compute confusion matrix
+    cnf_matrix = confusion_matrix(y_test, y_pred)
+    np.set_printoptions(precision=2)
+
+    # Plot non-normalized confusion matrix
+    # plt.figure()
+    # plot_confusion_matrix(cnf_matrix, classes=class_names,
+    #                       title='Confusion matrix, without normalization')
+
+    # Plot normalized confusion matrix
+    plt.figure()
+    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+                          title='Normalized confusion matrix')
+
+    plt.show()
+    return scaler
+
+
+def test_temporal_model_rel(scaler, model_name, use_prior):
+    annots_dir = '/Users/andrewsilva/my_rel_data/'
+    true_y = []
+    pred_y = []
+    bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
+                'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
+                'objects']
+    clf = joblib.load(model_name)
+    for filename in os.listdir(annots_dir):
+        af = open(os.path.join(annots_dir, filename), 'rb')
+        annotation = pickle.load(af)
+        # For each person in the segmentation
+        for person in annotation:
+            last_value = -1
+            sorted_ann = sorted(annotation[person], key=lambda x: x['timestamp'])
+
+            # previous_timestep = []
+            # for i in range(28):
+            #     previous_timestep.append(-1)
+
+            for piece in sorted_ann:
+                for key, value in piece.iteritems():
+                    if key in bad_keys:
+                        continue
+                    if value >= 1.7e300:
+                        piece[key] = -1
+                true_label = piece['value']
+                if true_label == 0:
+                    last_value = -1
+                    continue
+                new_input_data = []
                 new_input_data.append(piece['right_wrist_angle'])
                 new_input_data.append(piece['right_elbow_angle'])
                 new_input_data.append(piece['left_wrist_angle'])
@@ -441,24 +622,23 @@ def train_rel_cpm(model_name, use_prior, clf):
                         new_input_data[27] += 1
                 if use_prior:
                     new_input_data.append(last_value)
-                last_value = label
-                X.append(new_input_data)
-                Y.append(label)
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.25, random_state=42)
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train = scaler.transform(X_train)
-    X_test = scaler.transform(X_test)
 
-    clf.fit(X_train, y_train)
-    joblib.dump(clf, model_name)
-    # clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
+                # holder = new_input_data[:]
+                # for element in previous_timestep:
+                #     new_input_data.append(element)
+                # previous_timestep = holder[:]
+
+                new_input_data = np.reshape(new_input_data, (1, -1))
+                new_input_data = scaler.transform(new_input_data)
+                true_y.append(true_label)
+                prediction = clf.predict(new_input_data)
+                last_value = prediction
+                pred_y.append(prediction)
     class_names = ['1', '2', '3', '4']
     # my_matrix = confusion_matrix(y_test, y_pred)
     # print my_matrix
     # Compute confusion matrix
-    cnf_matrix = confusion_matrix(y_test, y_pred)
+    cnf_matrix = confusion_matrix(true_y, pred_y)
     np.set_printoptions(precision=2)
 
     # Plot non-normalized confusion matrix
@@ -472,10 +652,9 @@ def train_rel_cpm(model_name, use_prior, clf):
                           title='Normalized confusion matrix')
 
     plt.show()
-    return scaler
 
 
-def train_raw_cpm(model_name, use_prior, clf):
+def train_raw_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed'
     X = []
     Y = []
@@ -489,6 +668,19 @@ def train_raw_cpm(model_name, use_prior, clf):
         for person in annotation:
             last_value = -1
             sorted_ann = sorted(annotation[person], key=lambda x: x['timestamp'])
+
+            # one_back = []
+            # two_back = []
+            # three_back = []
+            # if use_prior:
+            #     input_len = 31
+            # else:
+            #     input_len = 30
+            # for i in range(input_len):
+            #     one_back.append(-1)
+                # two_back.append(-1)
+                # three_back.append(-1)
+
             for piece in sorted_ann:
                 new_input_data = []
                 for key, value in piece.iteritems():
@@ -550,11 +742,28 @@ def train_raw_cpm(model_name, use_prior, clf):
                     else:
                         new_input_data[29] += 1
                 if use_prior:
-                    new_input_data.append(last_value)
+                    if np.random.rand() > dropout_val:
+                        new_input_data.append(last_value)
+                    else:
+                        new_input_data.append(-1)
                 last_value = label
+
+                # holder = new_input_data[:]
+                # for element in one_back:
+                #     new_input_data.append(element)
+                # for element in two_back:
+                #     new_input_data.append(element)
+                # for element in three_back:
+                #     new_input_data.append(element)
+                # three_back = two_back[:]
+                # two_back = one_back[:]
+                # one_back = holder[:]
+
                 X.append(new_input_data)
                 Y.append(label)
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+    X = np.array(X)
+    Y = np.array(Y)
+    X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=0.33)
     scaler = StandardScaler()
     scaler.fit(X_train)
     X_train = scaler.transform(X_train)
@@ -563,6 +772,24 @@ def train_raw_cpm(model_name, use_prior, clf):
     clf.fit(X_train, y_train)
     joblib.dump(clf, model_name)
     # clf.fit(X_train, y_train)
+    last_prediction = -1
+    # two_preds = -1
+    # three_preds = -1
+    # y_pred = []
+    # for sample in X_test:
+    #     # predict, replace element[28] with prediction.
+    #     if use_prior:
+    #         sample[30] = last_prediction
+    #         # sample[61] = two_preds
+    #         # sample[92] = three_preds
+    #         # three_preds = two_preds
+    #         # two_preds = last_prediction
+    #     sample = np.reshape(sample, (1, -1))
+    #     sample = scaler.transform(sample)
+    #     prediction = clf.predict(sample)
+    #     last_prediction = prediction
+    #     y_pred.append(prediction)
+
     y_pred = clf.predict(X_test)
     class_names = ['1', '2', '3', '4']
     # my_matrix = confusion_matrix(y_test, y_pred)
@@ -572,9 +799,9 @@ def train_raw_cpm(model_name, use_prior, clf):
     np.set_printoptions(precision=2)
 
     # Plot non-normalized confusion matrix
-    plt.figure()
-    plot_confusion_matrix(cnf_matrix, classes=class_names,
-                          title='Confusion matrix, without normalization')
+    # plt.figure()
+    # plot_confusion_matrix(cnf_matrix, classes=class_names,
+    #                       title='Confusion matrix, without normalization')
 
     # Plot normalized confusion matrix
     plt.figure()
@@ -688,108 +915,7 @@ def test_temporal_model_raw(scaler, model_name, use_prior):
     plt.show()
 
 
-def test_temporal_model_rel(scaler, model_name, use_prior):
-    annots_dir = '/Users/andrewsilva/my_rel_data/'
-    true_y = []
-    pred_y = []
-    bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
-                'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
-                'objects']
-    clf = joblib.load(model_name)
-    for filename in os.listdir(annots_dir):
-        af = open(os.path.join(annots_dir, filename), 'rb')
-        annotation = pickle.load(af)
-        # For each person in the segmentation
-        for person in annotation:
-            last_value = -1
-            sorted_ann = sorted(annotation[person], key=lambda x: x['timestamp'])
-            for piece in sorted_ann:
-                for key, value in piece.iteritems():
-                    if key in bad_keys:
-                        continue
-                    if value >= 1.7e300:
-                        piece[key] = -1
-                true_label = piece['value']
-                if true_label == 0:
-                    last_value = -1
-                    continue
-                new_input_data = []
-                new_input_data.append(piece['right_wrist_angle'])
-                new_input_data.append(piece['right_elbow_angle'])
-                new_input_data.append(piece['left_wrist_angle'])
-                new_input_data.append(piece['left_elbow_angle'])
-                new_input_data.append(piece['shoulder_vec_x'])
-                new_input_data.append(piece['shoulder_vec_y'])
-                new_input_data.append(piece['left_eye_angle'])
-                new_input_data.append(piece['right_eye_angle'])
-                new_input_data.append(piece['eye_vec_x'])
-                new_input_data.append(piece['eye_vec_y'])
-                new_input_data.append(piece['right_shoulder_angle'])
-                new_input_data.append(piece['left_shoulder_angle'])
-                new_input_data.append(piece['nose_vec_y'])
-                new_input_data.append(piece['nose_vec_x'])
-                new_input_data.append(piece['left_arm_vec_x'])
-                new_input_data.append(piece['left_arm_vec_y'])
-                new_input_data.append(piece['right_arm_vec_x'])
-                new_input_data.append(piece['right_arm_vec_y'])
-                new_input_data.append(piece['gaze'])
-                new_input_data.append(0) # book 19
-                new_input_data.append(0) # bottle 20
-                new_input_data.append(0) # bowl 21
-                new_input_data.append(0) # cup 22
-                new_input_data.append(0) # laptop 23
-                new_input_data.append(0) # cell phone 24
-                new_input_data.append(0) # blocks 25
-                new_input_data.append(0) # tablet 26
-                new_input_data.append(0) # unknown 27
-                for item in piece['objects']:
-                    if item == 'book':
-                        new_input_data[19] += 1
-                    elif item == 'bottle':
-                        new_input_data[20] += 1
-                    elif item == 'bowl':
-                        new_input_data[21] += 1
-                    elif item == 'cup':
-                        new_input_data[22] += 1
-                    elif item == 'laptop':
-                        new_input_data[23] += 1
-                    elif item == 'cell phone':
-                        new_input_data[24] += 1
-                    elif item == 'blocks':
-                        new_input_data[25] += 1
-                    elif item == 'tablet':
-                        new_input_data[26] += 1
-                    else:
-                        new_input_data[27] += 1
-                if use_prior:
-                    new_input_data.append(last_value)
-                new_input_data = np.reshape(new_input_data, (1, -1))
-                new_input_data = scaler.transform(new_input_data)
-                true_y.append(true_label)
-                prediction = clf.predict(new_input_data)
-                last_value = prediction
-                pred_y.append(prediction)
-    class_names = ['1', '2', '3', '4']
-    # my_matrix = confusion_matrix(y_test, y_pred)
-    # print my_matrix
-    # Compute confusion matrix
-    cnf_matrix = confusion_matrix(true_y, pred_y)
-    np.set_printoptions(precision=2)
-
-    # Plot non-normalized confusion matrix
-    plt.figure()
-    plot_confusion_matrix(cnf_matrix, classes=class_names,
-                          title='Confusion matrix, without normalization')
-
-    # Plot normalized confusion matrix
-    plt.figure()
-    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
-                          title='Normalized confusion matrix')
-
-    plt.show()
-
-
-def train_no_cpm(model_name, use_prior, clf):
+def train_no_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed'
     X = []
     Y = []
@@ -844,11 +970,14 @@ def train_no_cpm(model_name, use_prior, clf):
                     else:
                         new_input_data[9] += 1
                 if use_prior:
-                    new_input_data.append(last_value)
+                    if np.random.rand() > dropout_val:
+                        new_input_data.append(last_value)
+                    else:
+                        new_input_data.append(-1)
                 last_value = label
                 X.append(new_input_data)
                 Y.append(label)
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.25, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.25)
     scaler = StandardScaler()
     scaler.fit(X_train)
     X_train = scaler.transform(X_train)
@@ -857,7 +986,19 @@ def train_no_cpm(model_name, use_prior, clf):
     clf.fit(X_train, y_train)
     joblib.dump(clf, model_name)
     # clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
+
+    last_prediction = -1
+    y_pred = []
+    for sample in X_test:
+        # predict, replace element[28] with prediction.
+        if use_prior:
+            sample[-1] = last_prediction
+        sample = np.reshape(sample, (1, -1))
+        prediction = clf.predict(sample)
+        last_prediction = prediction
+        y_pred.append(prediction)
+
+    # y_pred = clf.predict(X_test)
     class_names = ['1', '2', '3', '4']
     # my_matrix = confusion_matrix(y_test, y_pred)
     # print my_matrix
@@ -866,9 +1007,9 @@ def train_no_cpm(model_name, use_prior, clf):
     np.set_printoptions(precision=2)
 
     # Plot non-normalized confusion matrix
-    plt.figure()
-    plot_confusion_matrix(cnf_matrix, classes=class_names,
-                          title='Confusion matrix, without normalization')
+    # plt.figure()
+    # plot_confusion_matrix(cnf_matrix, classes=class_names,
+    #                       title='Confusion matrix, without normalization')
 
     # Plot normalized confusion matrix
     plt.figure()
@@ -877,6 +1018,7 @@ def train_no_cpm(model_name, use_prior, clf):
 
     plt.show()
     return scaler
+
 
 
 def test_temporal_model_no_cpm(scaler, model_name, use_prior):
@@ -962,15 +1104,476 @@ def test_temporal_model_no_cpm(scaler, model_name, use_prior):
     plt.show()
 
 
+def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
+    annots_dir = '/Users/andrewsilva/my_rel_data/'
+    X = []
+    Y = []
+    bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
+                'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
+                'objects']
+    for filename in os.listdir(annots_dir):
+        af = open(os.path.join(annots_dir, filename), 'rb')
+        annotation = pickle.load(af)
+        # For each person in the segmentation
+        for person in annotation:
+            last_value = -1
+            sorted_ann = sorted(annotation[person], key = lambda x: x['timestamp'])
+            # one_back = []
+            # two_back = []
+            # three_back = []
+            # for i in range(29):
+            #     one_back.append(-1)
+            #     two_back.append(-1)
+            #     three_back.append(-1)
+
+            for piece in sorted_ann:
+                new_input_data = []
+                for key, value in piece.iteritems():
+                    if key in bad_keys:
+                        continue
+                    if value >= 1.7e300:
+                        piece[key] = -1
+                label = piece['value']
+                if label == 0:
+                    last_value = -1
+                    continue
+                new_input_data.append(piece['right_wrist_angle'])       # 0
+                new_input_data.append(piece['right_elbow_angle'])       # 1
+                new_input_data.append(piece['left_wrist_angle'])        # 2
+                new_input_data.append(piece['left_elbow_angle'])        # 3
+                # new_input_data.append(piece['shoulder_vec_x'])          # 4
+                # new_input_data.append(piece['shoulder_vec_y'])          # 5
+                new_input_data.append(piece['left_eye_angle'])          # 6
+                new_input_data.append(piece['right_eye_angle'])         # 7
+                # new_input_data.append(piece['eye_vec_x'])               # 8
+                # new_input_data.append(piece['eye_vec_y'])               # 9
+                new_input_data.append(piece['right_shoulder_angle'])    # 10
+                new_input_data.append(piece['left_shoulder_angle'])     # 11
+                new_input_data.append(piece['nose_vec_y'])              # 12
+                new_input_data.append(piece['nose_vec_x'])              # 13
+                # new_input_data.append(piece['left_arm_vec_x'])          # 14
+                # new_input_data.append(piece['left_arm_vec_y'])          # 15
+                # new_input_data.append(piece['right_arm_vec_x'])         # 16
+                # new_input_data.append(piece['right_arm_vec_y'])         # 17
+                new_input_data.append(piece['gaze'])                    # 18
+                new_input_data.append(0)                                # book 19
+                new_input_data.append(0)                                # bottle 20
+                new_input_data.append(0)                                # bowl 21
+                new_input_data.append(0)                                # cup 22
+                new_input_data.append(0)                                # laptop 23
+                new_input_data.append(0)                                # cell phone 24
+                new_input_data.append(0)                                # blocks 25
+                new_input_data.append(0)                                # tablet 26
+                new_input_data.append(0)                                # unknown 27
+                foi = 11 # first object index to make it easier to change stuff
+                for item in piece['objects']:
+                    if item == 'book':
+                        new_input_data[foi] += 1
+                    elif item == 'bottle':
+                        new_input_data[foi+1] += 1
+                    elif item == 'bowl':
+                        new_input_data[foi+2] += 1
+                    elif item == 'cup':
+                        new_input_data[foi+3] += 1
+                    elif item == 'laptop':
+                        new_input_data[foi+4] += 1
+                    elif item == 'cell phone':
+                        new_input_data[foi+5] += 1
+                    elif item == 'blocks':
+                        new_input_data[foi+6] += 1
+                    elif item == 'tablet':
+                        new_input_data[foi+7] += 1
+                    else:
+                        new_input_data[foi+8] += 1
+                if use_prior:
+                    if np.random.rand() > dropout_val:
+                        new_input_data.append(last_value)
+                    else:
+                        new_input_data.append(-1)
+
+                # holder = new_input_data[:]
+                # for element in one_back:
+                #     new_input_data.append(element)
+                # for element in two_back:
+                #     new_input_data.append(element)
+                # for element in three_back:
+                #     new_input_data.append(element)
+                # three_back = two_back[:]
+                # two_back = one_back[:]
+                # one_back = holder[:]
+                if label <= 2:
+                    label = 0
+                else:
+                    label = 1
+                last_value = label
+                X.append(new_input_data)
+                Y.append(label)
+
+    X = np.array(X)
+    Y = np.array(Y)
+    kf = StratifiedKFold(n_splits=5, shuffle=False)
+    fold_count = 1
+    for train_idx, test_idx in kf.split(X, Y):
+        X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+        y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
+        scaler = StandardScaler()
+        scaler.fit(X_train)
+        X_train = scaler.transform(X_train)
+        X_test = scaler.transform(X_test)
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        print 'Fold:', fold_count
+        print 'F1:', f1_score(y_test, y_pred)
+        fold_count += 1
+    # X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=59)
+    # X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=.2)
+
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    clf.fit(X_train, y_train)
+    joblib.dump(clf, model_name)
+    # VISUALIZE FEATURE IMPORTANCE
+    # importances = clf.feature_importances_
+    # std = np.std([tree.feature_importances_ for tree in clf.estimators_],
+    #              axis=0)
+    # indices = np.argsort(importances)[::-1]
+    #
+    # # Print the feature ranking
+    # print("Feature ranking:")
+    # X = np.array(X)
+    # for f in range(X.shape[1]):
+    #     print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
+    #
+    # # Plot the feature importances of the forest
+    # plt.figure()
+    # plt.title("Feature importances")
+    # plt.bar(range(X.shape[1]), importances[indices],
+    #         color="r", yerr=std[indices], align="center")
+    # plt.xticks(range(X.shape[1]), indices)
+    # plt.xlim([-1, X.shape[1]])
+    # plt.show()
+    # END FEATURE IMPORTANCE VISUALIZATION
+    # TODO manual k-fold stuff, predict single file and propagate predictions.
+    last_prediction = -1
+    # y_pred = []
+    # for sample in X_test:
+    #     # predict, replace element[28] with prediction.
+    #     if use_prior:
+    #         sample[-1] = last_prediction
+    #     sample = np.reshape(sample, (1, -1))
+    #     prediction = clf.predict(sample)
+    #     last_prediction = prediction
+    #     y_pred.append(prediction)
+
+    y_pred = clf.predict(X_test)
+    print y_pred
+    class_names = ['0', '1']
+    my_matrix = confusion_matrix(y_test, y_pred)
+    print my_matrix
+    cnf_matrix = confusion_matrix(y_test, y_pred)
+    np.set_printoptions(precision=2)
+    plt.figure()
+    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+                          title='Normalized confusion matrix')
+
+    plt.show()
+    print 'F1: ', f1_score(y_test, y_pred)
+
+    return scaler
+
+
+def train_binary_raw_cpm(model_name, use_prior, clf, dropout_val = 0.75):
+    annots_dir = '/Users/andrewsilva/my_annots_trimmed'
+    X = []
+    Y = []
+    bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
+                'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
+                'objects']
+    for filename in os.listdir(annots_dir):
+        af = open(os.path.join(annots_dir, filename), 'rb')
+        annotation = pickle.load(af)
+        # For each person in the segmentation
+        for person in annotation:
+            last_value = -1
+            sorted_ann = sorted(annotation[person], key=lambda x: x['timestamp'])
+
+            # one_back = []
+            # two_back = []
+            # three_back = []
+            # if use_prior:
+            #     input_len = 31
+            # else:
+            #     input_len = 30
+            # for i in range(input_len):
+            #     one_back.append(-1)
+                # two_back.append(-1)
+                # three_back.append(-1)
+
+            for piece in sorted_ann:
+                new_input_data = []
+                for key, value in piece.iteritems():
+                    if key in bad_keys:
+                        continue
+                    if value >= 1.7e300:
+                        piece[key] = -1
+                label = piece['value']
+                if label == 0:
+                    last_value = -1
+                    continue
+                new_input_data.append(piece['left_shoulder_x'])
+                new_input_data.append(piece['left_shoulder_y'])
+                new_input_data.append(piece['left_elbow_x'])
+                new_input_data.append(piece['left_elbow_y'])
+                new_input_data.append(piece['left_wrist_x'])
+                new_input_data.append(piece['left_wrist_y'])
+                new_input_data.append(piece['left_eye_x'])
+                new_input_data.append(piece['left_eye_y'])
+                new_input_data.append(piece['right_shoulder_x'])
+                new_input_data.append(piece['right_shoulder_y'])
+                new_input_data.append(piece['right_elbow_x'])
+                new_input_data.append(piece['right_elbow_y'])
+                new_input_data.append(piece['right_wrist_x'])
+                new_input_data.append(piece['right_wrist_y'])
+                new_input_data.append(piece['right_eye_x'])
+                new_input_data.append(piece['right_eye_y'])
+                new_input_data.append(piece['nose_x'])
+                new_input_data.append(piece['nose_y'])
+                new_input_data.append(piece['neck_x'])
+                new_input_data.append(piece['neck_y'])
+                new_input_data.append(piece['gaze'])
+                new_input_data.append(0)  # book 21
+                new_input_data.append(0)  # bottle 22
+                new_input_data.append(0)  # bowl 23
+                new_input_data.append(0)  # cup 24
+                new_input_data.append(0)  # laptop 25
+                new_input_data.append(0)  # cell phone 26
+                new_input_data.append(0)  # blocks 27
+                new_input_data.append(0)  # tablet 28
+                new_input_data.append(0)  # unknown 29
+                for item in piece['objects']:
+                    if item == 'book':
+                        new_input_data[21] += 1
+                    elif item == 'bottle':
+                        new_input_data[22] += 1
+                    elif item == 'bowl':
+                        new_input_data[23] += 1
+                    elif item == 'cup':
+                        new_input_data[24] += 1
+                    elif item == 'laptop':
+                        new_input_data[25] += 1
+                    elif item == 'cell phone':
+                        new_input_data[26] += 1
+                    elif item == 'blocks':
+                        new_input_data[27] += 1
+                    elif item == 'tablet':
+                        new_input_data[28] += 1
+                    else:
+                        new_input_data[29] += 1
+                if use_prior:
+                    if np.random.rand() > dropout_val:
+                        new_input_data.append(last_value)
+                    else:
+                        new_input_data.append(-1)
+
+                if label <= 2:
+                    label = 0
+                else:
+                    label = 1
+                last_value = label
+
+                # holder = new_input_data[:]
+                # for element in one_back:
+                #     new_input_data.append(element)
+                # for element in two_back:
+                #     new_input_data.append(element)
+                # for element in three_back:
+                #     new_input_data.append(element)
+                # three_back = two_back[:]
+                # two_back = one_back[:]
+                # one_back = holder[:]
+
+                X.append(new_input_data)
+                Y.append(label)
+    X = np.array(X)
+    Y = np.array(Y)
+    # TODO: K Fold CV
+    # kf = StratifiedKFold(n_splits=10, shuffle=False)
+    # fold_count = 1
+    # for train_idx, test_idx in kf.split(X, Y):
+    #     X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+    #     y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
+    #     scaler = StandardScaler()
+    #     scaler.fit(X_train)
+    #     X_train = scaler.transform(X_train)
+    #     X_test = scaler.transform(X_test)
+    #     clf.fit(X_train, y_train)
+    #     y_pred = clf.predict(X_test)
+    #     print 'Fold:', fold_count
+    #     print 'F1:', f1_score(y_test, y_pred)
+    #     fold_count += 1
+
+    X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=0.2)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    clf.fit(X_train, y_train)
+    joblib.dump(clf, model_name)
+
+    y_pred = clf.predict(X_test)
+    class_names = ['0', '1']
+
+    cnf_matrix = confusion_matrix(y_test, y_pred)
+    np.set_printoptions(precision=2)
+
+    # Plot normalized confusion matrix
+    plt.figure()
+    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+                          title='Normalized confusion matrix')
+
+    plt.show()
+    print 'F1: ', f1_score(y_test, y_pred)
+    return scaler
+
+
+def train_binary_no_cpm(model_name, use_prior, clf, dropout_val=0.75):
+    annots_dir = '/Users/andrewsilva/my_annots_trimmed'
+    X = []
+    Y = []
+    bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
+                'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
+                'objects']
+    for filename in os.listdir(annots_dir):
+        af = open(os.path.join(annots_dir, filename), 'rb')
+        annotation = pickle.load(af)
+        # For each person in the segmentation
+        for person in annotation:
+            last_value = -1
+            sorted_ann = sorted(annotation[person], key=lambda x: x['timestamp'])
+            for piece in sorted_ann:
+                new_input_data = []
+                for key, value in piece.iteritems():
+                    if key in bad_keys:
+                        continue
+                    if value >= 1.7e300:
+                        piece[key] = -1
+                label = piece['value']
+                if label == 0:
+                    last_value = -1
+                    continue
+                new_input_data.append(piece['gaze'])
+                new_input_data.append(0)  # book 1
+                new_input_data.append(0)  # bottle 2
+                new_input_data.append(0)  # bowl 3
+                new_input_data.append(0)  # cup 4
+                new_input_data.append(0)  # laptop 5
+                new_input_data.append(0)  # cell phone 6
+                new_input_data.append(0)  # blocks 7
+                new_input_data.append(0)  # tablet 8
+                new_input_data.append(0)  # unknown 9
+                for item in piece['objects']:
+                    if item == 'book':
+                        new_input_data[1] += 1
+                    elif item == 'bottle':
+                        new_input_data[2] += 1
+                    elif item == 'bowl':
+                        new_input_data[3] += 1
+                    elif item == 'cup':
+                        new_input_data[4] += 1
+                    elif item == 'laptop':
+                        new_input_data[5] += 1
+                    elif item == 'cell phone':
+                        new_input_data[6] += 1
+                    elif item == 'blocks':
+                        new_input_data[7] += 1
+                    elif item == 'tablet':
+                        new_input_data[8] += 1
+                    else:
+                        new_input_data[9] += 1
+                if use_prior:
+                    if np.random.rand() > dropout_val:
+                        new_input_data.append(last_value)
+                    else:
+                        new_input_data.append(-1)
+
+                if label <= 2:
+                    label = 0
+                else:
+                    label = 1
+                last_value = label
+                X.append(new_input_data)
+                Y.append(label)
+    X = np.array(X)
+    Y = np.array(Y)
+    # kf = StratifiedKFold(n_splits=10, shuffle=False)
+    # fold_count = 1
+    # for train_idx, test_idx in kf.split(X, Y):
+    #     X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+    #     y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
+    #     scaler = StandardScaler()
+    #     scaler.fit(X_train)
+    #     X_train = scaler.transform(X_train)
+    #     X_test = scaler.transform(X_test)
+    #     clf.fit(X_train, y_train)
+    #     y_pred = clf.predict(X_test)
+    #     print 'Fold:', fold_count
+    #     print 'F1:', f1_score(y_test, y_pred)
+    #     fold_count += 1
+    X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=0.25)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    clf.fit(X_train, y_train)
+    joblib.dump(clf, model_name)
+    # clf.fit(X_train, y_train)
+
+    last_prediction = -1
+    y_pred = []
+    # for sample in X_test:
+    #     # predict, replace element[28] with prediction.
+    #     if use_prior:
+    #         sample[-1] = last_prediction
+    #     sample = np.reshape(sample, (1, -1))
+    #     prediction = clf.predict(sample)
+    #     last_prediction = prediction
+    #     y_pred.append(prediction)
+
+    y_pred = clf.predict(X_test)
+    class_names = ['0', '1']
+    # my_matrix = confusion_matrix(y_test, y_pred)
+    # print my_matrix
+    # Compute confusion matrix
+    cnf_matrix = confusion_matrix(y_test, y_pred)
+    np.set_printoptions(precision=2)
+
+    # Plot non-normalized confusion matrix
+    # plt.figure()
+    # plot_confusion_matrix(cnf_matrix, classes=class_names,
+    #                       title='Confusion matrix, without normalization')
+
+    # Plot normalized confusion matrix
+    plt.figure()
+    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+                          title='Normalized confusion matrix')
+
+    plt.show()
+    print 'F1: ', f1_score(y_test, y_pred)
+    return scaler
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         adir = sys.argv[1]
-    # change_to_relations()
-    # plot_angles()
-    model_name = 'random_forest_no_cpm_prior.pkl'
-    use_prior = True
-    clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
-    # clf = MLPClassifier(max_iter=40000, tol=1e-4)
+    model_name = 'random_forest_nocpm.pkl'
+    use_prior = False
+    # clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
+    clf = MLPClassifier(max_iter=40000, tol=1e-4)
     # clf = KNeighborsClassifier()
-    scaler = train_no_cpm(model_name, use_prior, clf)
-    test_temporal_model_no_cpm(scaler, model_name, use_prior)
+    scaler = train_binary_rel_cpm(model_name, use_prior, clf, dropout_val=0.75)
+    # test_temporal_model_rel(scaler, model_name, use_prior)
