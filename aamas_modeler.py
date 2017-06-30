@@ -49,6 +49,13 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.xlabel('Predicted label')
 
 
+def non_shuffling_train_test_split(X, y, test_size=0.2):
+    i = int((1 - test_size) * X.shape[0]) + 1
+    X_train, X_test = np.split(X, [i])
+    y_train, y_test = np.split(y, [i])
+    return X_train, X_test, y_train, y_test
+
+
 def annotation_printer(annotation):
     for index, person in enumerate(annotation):
         for piece in person['data']:

@@ -18,7 +18,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
-from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from sklearn.externals import joblib
 
 
@@ -1213,28 +1213,36 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     Y = np.array(Y)
     kf = StratifiedKFold(n_splits=5, shuffle=False)
     fold_count = 1
+    clf = joblib.load('MLPrel.pkl')
+    scaler = joblib.load('scaler.pkl')
     for train_idx, test_idx in kf.split(X, Y):
         X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
         y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
-        scaler = StandardScaler()
-        scaler.fit(X_train)
-        X_train = scaler.transform(X_train)
         X_test = scaler.transform(X_test)
-        clf.fit(X_train, y_train)
+        # scaler = StandardScaler()
+        # scaler.fit(X_train)
+        # X_train = scaler.transform(X_train)
+        # X_test = scaler.transform(X_test)
+        # clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         print 'Fold:', fold_count
         print 'F1:', f1_score(y_test, y_pred)
+        print 'Accuracy:', accuracy_score(y_test, y_pred)
+        cm = confusion_matrix(y_test, y_pred)
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print cm
         fold_count += 1
     # X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=59)
     # X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=.2)
 
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train = scaler.transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    clf.fit(X_train, y_train)
-    joblib.dump(clf, model_name)
+    # scaler = StandardScaler()
+    # scaler.fit(X_train)
+    # X_train = scaler.transform(X_train)
+    # X_test = scaler.transform(X_test)
+    #
+    # clf.fit(X_train, y_train)
+    # joblib.dump(clf, model_name)
+    # joblib.dump(scaler, 'scaler.pkl')
     # VISUALIZE FEATURE IMPORTANCE
     # importances = clf.feature_importances_
     # std = np.std([tree.feature_importances_ for tree in clf.estimators_],
@@ -1268,19 +1276,19 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     #     last_prediction = prediction
     #     y_pred.append(prediction)
 
-    y_pred = clf.predict(X_test)
-    print y_pred
-    class_names = ['0', '1']
-    my_matrix = confusion_matrix(y_test, y_pred)
-    print my_matrix
-    cnf_matrix = confusion_matrix(y_test, y_pred)
-    np.set_printoptions(precision=2)
-    plt.figure()
-    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
-                          title='Normalized confusion matrix')
-
-    plt.show()
-    print 'F1: ', f1_score(y_test, y_pred)
+    # y_pred = clf.predict(X_test)
+    # print y_pred
+    # class_names = ['0', '1']
+    # my_matrix = confusion_matrix(y_test, y_pred)
+    # print my_matrix
+    # cnf_matrix = confusion_matrix(y_test, y_pred)
+    # np.set_printoptions(precision=2)
+    # plt.figure()
+    # plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+    #                       title='Normalized confusion matrix')
+    #
+    # plt.show()
+    # print 'F1: ', f1_score(y_test, y_pred)
 
     return scaler
 
@@ -1570,10 +1578,11 @@ def train_binary_no_cpm(model_name, use_prior, clf, dropout_val=0.75):
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         adir = sys.argv[1]
-    model_name = 'random_forest_nocpm.pkl'
+    model_name = 'MLPrel.pkl'
     use_prior = False
     # clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
     clf = MLPClassifier(max_iter=40000, tol=1e-4)
     # clf = KNeighborsClassifier()
+    # clf = svm.SVC(decision_function_shape='ovo')
     scaler = train_binary_rel_cpm(model_name, use_prior, clf, dropout_val=0.75)
     # test_temporal_model_rel(scaler, model_name, use_prior)
