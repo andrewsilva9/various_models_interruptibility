@@ -1118,21 +1118,13 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
         for person in annotation:
             last_value = -1
             sorted_ann = sorted(annotation[person], key = lambda x: x['timestamp'])
-            # one_back = []
-            # two_back = []
-            # three_back = []
-            # for i in range(29):
-            #     one_back.append(-1)
-            #     two_back.append(-1)
-            #     three_back.append(-1)
-
             for piece in sorted_ann:
                 new_input_data = []
                 for key, value in piece.iteritems():
                     if key in bad_keys:
                         continue
                     if value >= 1.7e300:
-                        piece[key] = -1
+                        piece[key] = -5
                 label = piece['value']
                 if label == 0:
                     last_value = -1
@@ -1191,16 +1183,6 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
                     else:
                         new_input_data.append(-1)
 
-                # holder = new_input_data[:]
-                # for element in one_back:
-                #     new_input_data.append(element)
-                # for element in two_back:
-                #     new_input_data.append(element)
-                # for element in three_back:
-                #     new_input_data.append(element)
-                # three_back = two_back[:]
-                # two_back = one_back[:]
-                # one_back = holder[:]
                 if label <= 2:
                     label = 0
                 else:
@@ -1213,17 +1195,17 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     Y = np.array(Y)
     kf = StratifiedKFold(n_splits=5, shuffle=False)
     fold_count = 1
-    clf = joblib.load('MLPrel.pkl')
-    scaler = joblib.load('scaler.pkl')
+    # TODO uncomment to load and test models
+    # clf = joblib.load('MLPrel.pkl')
+    # scaler = joblib.load('scaler.pkl')
     for train_idx, test_idx in kf.split(X, Y):
         X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
         y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
+        scaler = StandardScaler()
+        scaler.fit(X_train)
+        X_train = scaler.transform(X_train)
         X_test = scaler.transform(X_test)
-        # scaler = StandardScaler()
-        # scaler.fit(X_train)
-        # X_train = scaler.transform(X_train)
-        # X_test = scaler.transform(X_test)
-        # clf.fit(X_train, y_train)
+        clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         print 'Fold:', fold_count
         print 'F1:', f1_score(y_test, y_pred)
@@ -1241,8 +1223,9 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     # X_test = scaler.transform(X_test)
     #
     # clf.fit(X_train, y_train)
-    # joblib.dump(clf, model_name)
-    # joblib.dump(scaler, 'scaler.pkl')
+    # TODO uncomment to save models
+    joblib.dump(clf, model_name)
+    joblib.dump(scaler, 'scaler.pkl')
     # VISUALIZE FEATURE IMPORTANCE
     # importances = clf.feature_importances_
     # std = np.std([tree.feature_importances_ for tree in clf.estimators_],
@@ -1578,7 +1561,7 @@ def train_binary_no_cpm(model_name, use_prior, clf, dropout_val=0.75):
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         adir = sys.argv[1]
-    model_name = 'MLPrel.pkl'
+    model_name = 'MLPrel2.pkl'
     use_prior = False
     # clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
     clf = MLPClassifier(max_iter=40000, tol=1e-4)
