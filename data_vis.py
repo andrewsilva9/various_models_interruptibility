@@ -3,18 +3,23 @@ import cv2
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import os
 import pickle
+import seaborn as sns
+import pandas as pd
 
 
-def vis_rel_data(scale=True):
-    annots_dir = '/home/asilva/Data/int_annotations/my_rel_data'
+def import_rel_data(automated=False):
+    if automated:
+        annots_dir = '/home/asilva/Data/int_annotations/automated_annots'
+    else:
+        annots_dir = '/home/asilva/Data/int_annotations/my_rel_data'
     X = []
     Y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
                 'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
                 'objects']
-    scale = scale
     for filename in os.listdir(annots_dir):
         if os.path.isdir(os.path.join(annots_dir, filename)):
             continue
@@ -52,7 +57,7 @@ def vis_rel_data(scale=True):
                 new_input_data.append(0)                                # cell phone 16
                 new_input_data.append(0)                                # blocks 17
                 new_input_data.append(0)                                # tablet 18
-                new_input_data.append(0)                                # unknown 19
+                # new_input_data.append(0)                                # unknown 19
                 foi = 11 # first object index to make it easier to change stuff
                 for item in piece['objects']:
                     if item == 'book':
@@ -67,43 +72,90 @@ def vis_rel_data(scale=True):
                         new_input_data[foi+4] += 1
                     elif item == 'cell phone':
                         new_input_data[foi+5] += 1
-                    elif item == 'blocks':
+                    elif item == 'block':
                         new_input_data[foi+6] += 1
                     elif item == 'tablet':
                         new_input_data[foi+7] += 1
                     else:
                         new_input_data[foi+8] += 1
-
-                if label <= 2:
-                    label = 0
-                else:
-                    label = 1
+                if not automated:
+                    if label <= 2:
+                        label = 0
+                    else:
+                        label = 1
                 X.append(new_input_data)
                 Y.append(label)
 
     X = np.array(X)
     Y = np.array(Y)
+    return X, Y
+
+
+def get_stddvs():
+    X, Y = import_rel_data()
+    # scaler = StandardScaler()
+    # scaler.fit(X)
+    # X = scaler.transform(X)
+    np.set_printoptions(precision=6, suppress=True)
+    print 'Standard Deviation: ', np.std(X, axis=0)
+    print 'Means: ', np.mean(X, axis=0)
+    print 'Sums: ', np.sum(X, axis=0)
+
+
+def vis_rel_data(scale=True, do_heatmap=True, do_variance=True, automated=True):
+    X, Y = import_rel_data(automated=automated)
+    if automated:
+        labels = [-1, 1]
+    else:
+        labels = [0, 1]
     if scale:
         scaler = StandardScaler()
         scaler.fit(X)
         X = scaler.transform(X)
-    pca = PCA(n_components=2)
+    n_comp = 19
+    pca = PCA(n_components=n_comp)
     X_pca = pca.fit_transform(X)
     colors = ['navy', 'darkorange']
-    plt.figure(figsize=(8, 8))
-    for color, i, target in zip(colors, [0, 1], ['Uninterruptible', 'Interruptible']):
-        plt.scatter(X_pca[Y==i, 0], X_pca[Y==i, 1], color=color, lw=2, label=target)
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    for color, i, target in zip(colors, labels, ['Uninterruptible', 'Interruptible']):
+        ax.scatter(X_pca[Y==i, 0], X_pca[Y==i, 1], X_pca[Y==i, 2], color=color, lw=2, label=target)
     plt.title('PCA of binary interruptibility dataset')
     plt.legend(loc='best', shadow=False, scatterpoints=1)
     if scale:
         plt.axis([-4, 4, -4, 6])
     else:
         plt.axis([-80, 150, -150, 150])
+    if do_heatmap:
+        plt.figure(figsize=(10, 6.5))
+        plt.title('Feature Importances to PCA Features')
+        sns.heatpltmap(np.log(pca.inverse_transform(np.eye(n_comp))), cmap="hot", cbar=False)
+        plt.ylabel('principal component', fontsize=20)
+        plt.xlabel('original feature index', fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=18)
+        plt.tick_params(axis='both', which='minor', labelsize=12)
+    if do_variance:
+        plt.figure(figsize=(10, 6.5))
+        plt.semilogy(pca.explained_variance_ratio_, '--o')
+        plt.xlabel('principal component', fontsize=20)
+        plt.ylabel('explained variance', fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=18)
+        plt.tick_params(axis='both', which='minor', labelsize=12)
+        plt.figure(figsize=(10, 6.5))
+        plt.semilogy(np.square(X.std(axis=0)) / np.square(X.std(axis=0)).sum(), '--o', label='variance ratio')
+        plt.semilogy(X.mean(axis=0) / np.square(X.mean(axis=0)).sum(), '--o', label='mean ratio')
+        plt.xlabel('original feature', fontsize=20)
+        plt.ylabel('variance', fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=18)
+        plt.tick_params(axis='both', which='minor', labelsize=12)
+        plt.xlim([0, 20]);
+        plt.legend(loc='lower left', fontsize=18)
     plt.show()
 
 
 def vis_raw_data(scale=True):
-    annots_dir = '/Users/andrewsilva/my_annots_trimmed'
+    annots_dir = '/home/asilva/Data/int_annotations/my_annots_trimmed'
     X = []
     Y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
@@ -169,7 +221,7 @@ def vis_raw_data(scale=True):
                         new_input_data[25] += 1
                     elif item == 'cell phone':
                         new_input_data[26] += 1
-                    elif item == 'blocks':
+                    elif item == 'block':
                         new_input_data[27] += 1
                     elif item == 'tablet':
                         new_input_data[28] += 1
@@ -189,7 +241,8 @@ def vis_raw_data(scale=True):
         scaler = StandardScaler()
         scaler.fit(X)
         X = scaler.transform(X)
-    pca = PCA(n_components=2)
+    n_comp = 30
+    pca = PCA(n_components=n_comp)
     X_pca = pca.fit_transform(X)
     colors = ['navy', 'darkorange']
     plt.figure(figsize=(8, 8))
@@ -201,7 +254,16 @@ def vis_raw_data(scale=True):
         plt.axis([-5, 5, -3.5, 4.5])
     else:
         plt.axis([-2500, 2400, -500, 1500])
+
+    plt.figure(figsize=(15, 10))
+    plt.title('Feature Importances to PCA Features')
+    sns.heatmap(np.log(pca.inverse_transform(np.eye(n_comp))), cmap="hot", cbar=False)
+    plt.ylabel('principal component', fontsize=20)
+    plt.xlabel('original feature index', fontsize=20)
+    plt.tick_params(axis='both', which='major', labelsize=18)
+    plt.tick_params(axis='both', which='minor', labelsize=12)
     plt.show()
+
 
 def vis_automated_rel_data(scale=True):
     annots_dir = '/home/asilva/Data/int_annotations/automated_annots'
@@ -261,7 +323,7 @@ def vis_automated_rel_data(scale=True):
                         new_input_data[foi+4] += 1
                     elif item == 'cell phone':
                         new_input_data[foi+5] += 1
-                    elif item == 'blocks':
+                    elif item == 'block':
                         new_input_data[foi+6] += 1
                     elif item == 'tablet':
                         new_input_data[foi+7] += 1
@@ -291,4 +353,5 @@ def vis_automated_rel_data(scale=True):
         plt.axis([-80, 150, -150, 150])
     plt.show()
 
-vis_rel_data(True)
+vis_rel_data(scale=True, do_heatmap=False)
+get_stddvs()
