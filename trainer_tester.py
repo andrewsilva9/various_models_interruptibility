@@ -1020,7 +1020,6 @@ def train_no_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     return scaler
 
 
-
 def test_temporal_model_no_cpm(scaler, model_name, use_prior):
     annots_dir = '/Users/andrewsilva/my_annots_trimmed/'
     true_y = []
@@ -1105,13 +1104,15 @@ def test_temporal_model_no_cpm(scaler, model_name, use_prior):
 
 
 def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
-    annots_dir = '/Users/andrewsilva/my_rel_data/'
+    annots_dir = '/home/asilva/Data/int_annotations/my_rel_data/'
     X = []
     Y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
                 'timestamp', 'bb_width', 'objects_timestamp', 'pos_z', 'pos_x', 'pos_y', 'name', 'pose_timestamp',
                 'objects']
     for filename in os.listdir(annots_dir):
+        if os.path.isdir(os.path.join(annots_dir, filename)):
+            continue
         af = open(os.path.join(annots_dir, filename), 'rb')
         annotation = pickle.load(af)
         # For each person in the segmentation
@@ -1189,31 +1190,69 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
                     label = 1
                 last_value = label
                 X.append(new_input_data)
-                Y.append(label)
+                Y.append({'filename': filename, 'timestamp': piece['timestamp'],
+                          'pos_y': piece['pos_y'], 'value': label, 'name':piece['name']})
 
     X = np.array(X)
-    Y = np.array(Y)
+    Y_labels = np.array([x['value'] for x in Y])
     kf = StratifiedKFold(n_splits=5, shuffle=False)
     fold_count = 1
     # TODO uncomment to load and test models
     # clf = joblib.load('MLPrel.pkl')
     # scaler = joblib.load('scaler.pkl')
-    for train_idx, test_idx in kf.split(X, Y):
-        X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
-        y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
+
+    #### BELOW IS FOR IN SAMPLE TIMELINE IMAGING ####
+    # scaler = StandardScaler()
+    # scaler.fit_transform(X)
+    # clf.fit(X, Y_labels)
+    master_prediction_list = {}
+    # for index in range(len(X)):
+    #     x_in = X[index]
+    #     x_in = x_in.reshape(1, -1)
+    #     y_in = Y[index]
+    #     y_pred = clf.predict(x_in)
+    #     fn = y_in['filename']
+    #     if fn not in master_prediction_list:
+    #         master_prediction_list[fn] = {}
+    #     if y_in['name'] not in master_prediction_list[fn]:
+    #         master_prediction_list[fn][y_in['name']] = []
+    #     master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
+    #                                                     'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+    #### END FOR IN SAMPLE TIMELINE IMAGING ####
+
+    for train_idx, test_idx in kf.split(X, Y_labels):
+        # X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+        # y_train, y_test = Y_labels[train_idx].copy(), Y[test_idx]
+        X_train = X[train_idx].copy()
+        y_train = Y_labels[train_idx].copy()
         scaler = StandardScaler()
         scaler.fit(X_train)
         X_train = scaler.transform(X_train)
-        X_test = scaler.transform(X_test)
+        # X_test = scaler.transform(X_test)
         clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        print 'Fold:', fold_count
-        print 'F1:', f1_score(y_test, y_pred)
-        print 'Accuracy:', accuracy_score(y_test, y_pred)
-        cm = confusion_matrix(y_test, y_pred)
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print cm
-        fold_count += 1
+        for index in test_idx:
+            x_in = scaler.transform(X[index])
+            x_in = x_in.reshape(1, -1)
+            y_in = Y[index]
+            y_pred = clf.predict(x_in)
+            fn = y_in['filename']
+            if fn not in master_prediction_list:
+                master_prediction_list[fn] = {}
+            if y_in['name'] not in master_prediction_list[fn]:
+                master_prediction_list[fn][y_in['name']] = []
+            master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
+                                                            'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+        # y_pred = clf.predict(X_test)
+        # print 'Fold:', fold_count
+        # print 'F1:', f1_score(y_test, y_pred)
+        # print 'Accuracy:', accuracy_score(y_test, y_pred)
+        # cm = confusion_matrix(y_test, y_pred)
+        # cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        # print cm
+        # fold_count += 1
+    out_dir = '/home/asilva/Data/predicted_annots'
+    for filename in master_prediction_list.keys():
+        pickle.dump(master_prediction_list[filename], open(os.path.join(out_dir, filename), 'wb'))
     # X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=59)
     # X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=.2)
 
@@ -1224,8 +1263,8 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     #
     # clf.fit(X_train, y_train)
     # TODO uncomment to save models
-    joblib.dump(clf, model_name)
-    joblib.dump(scaler, 'scaler.pkl')
+    # joblib.dump(clf, model_name)
+    # joblib.dump(scaler, 'scaler.pkl')
     # VISUALIZE FEATURE IMPORTANCE
     # importances = clf.feature_importances_
     # std = np.std([tree.feature_importances_ for tree in clf.estimators_],
@@ -1563,8 +1602,8 @@ if __name__ == '__main__':
         adir = sys.argv[1]
     model_name = 'MLPrel2.pkl'
     use_prior = False
-    # clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
-    clf = MLPClassifier(max_iter=40000, tol=1e-4)
+    clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
+    # clf = MLPClassifier(max_iter=40000, tol=1e-4)
     # clf = KNeighborsClassifier()
     # clf = svm.SVC(decision_function_shape='ovo')
     scaler = train_binary_rel_cpm(model_name, use_prior, clf, dropout_val=0.75)

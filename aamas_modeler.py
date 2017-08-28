@@ -11,6 +11,9 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn import svm
+
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
@@ -38,7 +41,8 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
 
     print(cm)
 
-    thresh = cm.max() / 2.
+    # thresh = cm.max() / 2
+    thresh = 0.85
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
         plt.text(j, i, cm[i, j],
                  horizontalalignment="center",
@@ -65,7 +69,7 @@ def annotation_printer(annotation):
 
 
 def train_aamas(model_name, clf):
-    annots_dir = '/Users/andrewsilva/aamas_annotations'
+    annots_dir = '/home/asilva/Data/int_annotations/aamas_annotations'
     X = []
     Y = []
     # TODO: Determine which data need to be in 'bad_keys'
@@ -191,8 +195,8 @@ def extract_matlab_info(data_file, label_file):
     X = []
     Y = []
     use_min_features = True
-    use_std_features = True
-    use_ext_features = True
+    use_std_features = False
+    use_ext_features = False
     use_object_features = True
     face_bool_feats = np.arange(0, 2)
     face_bb_features = np.arange(2, 6)
@@ -249,7 +253,7 @@ def extract_matlab_info(data_file, label_file):
     return X, Y
 
 def train_full_aamas(model_name, clf):
-    annots_dir = '/Users/andrewsilva/aamasmatlab'
+    annots_dir = '/home/asilva/Data/int_annotations/aamasmatlab'
     X = []
     Y = []
     # TODO: Determine which data need to be in 'bad_keys'
@@ -265,56 +269,45 @@ def train_full_aamas(model_name, clf):
     # kf = KFold(n_splits=10)
     X = np.array(X)
     Y = np.array(Y)
-    # for train_index, test_index in kf.split(X):
-    #     X_train, X_test = X[train_index].copy(), X[test_index].copy()
-    #     y_train, y_test = Y[train_index].copy(), Y[test_index].copy()
+    # kf = KFold(n_splits=5, shuffle=False)
+    # fold_count = 1
+    # for train_idx, test_idx in kf.split(X):
+    #     X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+    #     y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
     #     scaler = StandardScaler()
     #     scaler.fit(X_train)
     #     X_train = scaler.transform(X_train)
     #     X_test = scaler.transform(X_test)
     #     clf.fit(X_train, y_train)
     #     y_pred = clf.predict(X_test)
+    #     print 'Fold:', fold_count
     #     cnf_matrix = confusion_matrix(y_test, y_pred)
     #     np.set_printoptions(precision=2)
+    #
+    #     # Plot normalized confusion matrix
     #     plt.figure()
     #     plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
     #                           title='Normalized confusion matrix')
     #
     #     plt.show()
-    X = np.array(X)
-    Y = np.array(Y)
-    kf = KFold(n_splits=10, shuffle=False)
-    fold_count = 1
-    for train_idx, test_idx in kf.split(X):
-        X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
-        y_train, y_test = Y[train_idx].copy(), Y[test_idx].copy()
-        scaler = StandardScaler()
-        scaler.fit(X_train)
-        X_train = scaler.transform(X_train)
-        X_test = scaler.transform(X_test)
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        print 'Fold:', fold_count
-        cnf_matrix = confusion_matrix(y_test, y_pred)
-        np.set_printoptions(precision=2)
+    #     fold_count += 1
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=69)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
 
-        # Plot normalized confusion matrix
-        plt.figure()
-        plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
-                              title='Normalized confusion matrix')
-
-        plt.show()
-        fold_count += 1
-    # X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=69)
-    # scaler = StandardScaler()
-    # scaler.fit(X_train)
-    # X_train = scaler.transform(X_train)
-    # X_test = scaler.transform(X_test)
-    #
-    # clf.fit(X_train, y_train)
+    clf.fit(X_train, y_train)
     # joblib.dump(clf, model_name)
-    # y_pred = clf.predict(X_test)
+    y_pred = clf.predict(X_test)
+    cnf_matrix = confusion_matrix(y_test, y_pred)
+    np.set_printoptions(precision=2)
 
+    # Plot normalized confusion matrix
+    plt.figure()
+    plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+                          title='Normalized confusion matrix')
+    plt.show()
 
     return scaler
 
@@ -329,5 +322,6 @@ if __name__ == '__main__':
     clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=10)
     # clf = MLPClassifier(max_iter=40000, tol=1e-4)
     # clf = KNeighborsClassifier()
+    # clf = svm.SVC(decision_function_shape='ovo')
     scaler = train_full_aamas(model_name, clf)
     # test_temporal_model_rel(scaler, model_name, use_prior)

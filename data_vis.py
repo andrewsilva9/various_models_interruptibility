@@ -91,15 +91,28 @@ def import_rel_data(automated=False):
     return X, Y
 
 
-def get_stddvs():
-    X, Y = import_rel_data()
+def get_stddvs(normalize=False, automated=True, label=2):
+    X, Y = import_rel_data(automated=automated)
     # scaler = StandardScaler()
     # scaler.fit(X)
     # X = scaler.transform(X)
     np.set_printoptions(precision=6, suppress=True)
-    print 'Standard Deviation: ', np.std(X, axis=0)
-    print 'Means: ', np.mean(X, axis=0)
-    print 'Sums: ', np.sum(X, axis=0)
+    if label < 2:
+        X = X[Y==label]
+    if normalize:
+        maxes = np.max(X, axis=0)
+        mins = np.min(X, axis=0)
+        for i in range(X.shape[1]):
+            if (maxes[i] - mins[i]) == 0:
+                continue
+            X[:, i] = (X[:, i] - mins[i]) / (maxes[i] - mins[i])
+        # Drop unknown
+        X = X[:, 0:-1]
+    stddev = np.std(X, axis=0)
+    mean = np.mean(X, axis=0)
+    print 'Standard Deviation: ', stddev
+    print 'Means: ', mean
+    return stddev, mean
 
 
 def vis_rel_data(scale=True, do_heatmap=True, do_variance=True, automated=True):
@@ -353,5 +366,17 @@ def vis_automated_rel_data(scale=True):
         plt.axis([-80, 150, -150, 150])
     plt.show()
 
-vis_rel_data(scale=True, do_heatmap=False)
-get_stddvs()
+# vis_rel_data(scale=True, do_heatmap=False)
+# unintstd, unintmean = get_stddvs(normalize=True, automated=False, label=0)
+# intstd, intmean = get_stddvs(normalize=True, automated=False, label=1)
+# allstd, allmean = get_stddvs(normalize=True, automated=False, label=2)
+#
+# unintstdiff = np.abs(allstd - unintstd)
+# intstddiff = np.abs(allstd - intstd)
+# unintmeandiff = np.abs(allmean - unintmean)
+# intmeandiff = np.abs(allmean - intmean)
+#
+# diff_between_two = intstddiff - unintstdiff
+# print diff_between_two*100
+# diff_again = abs(intstd) - abs(unintstd)
+# print diff_again*100
