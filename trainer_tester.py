@@ -1104,7 +1104,7 @@ def test_temporal_model_no_cpm(scaler, model_name, use_prior):
 
 
 def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
-    annots_dir = '/home/asilva/Data/int_annotations/my_rel_data/'
+    annots_dir = '/home/asilva/Data/sid_annots'
     X = []
     Y = []
     bad_keys = ['bb_y', 'bb_x', 'gaze_timestamp', 'pos_frame', 'send_timestamp', 'bb_height', 'pos_timestamp',
@@ -1126,7 +1126,10 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
                         continue
                     if value >= 1.7e300:
                         piece[key] = -5
-                label = piece['value']
+                label = piece.get('value', None)
+                if label is None:
+                    print piece
+                    continue
                 if label == 0:
                     last_value = -1
                     continue
