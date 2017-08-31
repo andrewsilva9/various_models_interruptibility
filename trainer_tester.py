@@ -1158,9 +1158,9 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
                 new_input_data.append(0)                                # cup 22
                 new_input_data.append(0)                                # laptop 23
                 new_input_data.append(0)                                # cell phone 24
-                new_input_data.append(0)                                # blocks 25
+                # new_input_data.append(0)                                # blocks 25
                 new_input_data.append(0)                                # tablet 26
-                new_input_data.append(0)                                # unknown 27
+                # new_input_data.append(0)                                # unknown 27
                 foi = 11 # first object index to make it easier to change stuff
                 for item in piece['objects']:
                     if item == 'book':
@@ -1175,12 +1175,12 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
                         new_input_data[foi+4] += 1
                     elif item == 'cell phone':
                         new_input_data[foi+5] += 1
-                    elif item == 'blocks':
-                        new_input_data[foi+6] += 1
+                    # elif item == 'blocks':
+                    #     new_input_data[foi+6] += 1
                     elif item == 'tablet':
-                        new_input_data[foi+7] += 1
-                    else:
-                        new_input_data[foi+8] += 1
+                        new_input_data[foi+6] += 1
+                    # else:
+                    #     new_input_data[foi+8] += 1
                 if use_prior:
                     if np.random.rand() > dropout_val:
                         new_input_data.append(last_value)
@@ -1206,46 +1206,45 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     master_prediction_list = {}
 
     #### BELOW IS FOR IN SAMPLE TIMELINE IMAGING ####
-    scaler = StandardScaler()
-    scaler.fit_transform(X)
-    clf.fit(X, Y_labels)
-    for index in range(len(X)):
-        x_in = X[index]
-        x_in = x_in.reshape(1, -1)
-        y_in = Y[index]
-        y_pred = clf.predict(x_in)
-        fn = y_in['filename']
-        if fn not in master_prediction_list:
-            master_prediction_list[fn] = {}
-        if y_in['name'] not in master_prediction_list[fn]:
-            master_prediction_list[fn][y_in['name']] = []
-        master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
-                                                        'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+    # scaler = StandardScaler()
+    # scaler.fit_transform(X)
+    # clf.fit(X, Y_labels)
+    # for index in range(len(X)):
+    #     x_in = X[index]
+    #     x_in = x_in.reshape(1, -1)
+    #     y_in = Y[index]
+    #     y_pred = clf.predict(x_in)
+    #     fn = y_in['filename']
+    #     if fn not in master_prediction_list:
+    #         master_prediction_list[fn] = {}
+    #     if y_in['name'] not in master_prediction_list[fn]:
+    #         master_prediction_list[fn][y_in['name']] = []
+    #     master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
+    #                                                     'pos_y': y_in['pos_y'], 'value': y_pred[0]})
     #### END FOR IN SAMPLE TIMELINE IMAGING ####
 
     #### BELOW IS FOR OUT OF SAMPLE TIMELINE IMAGING ####
-    # for train_idx, test_idx in kf.split(X, Y_labels):
-    #     # X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
-    #     # y_train, y_test = Y_labels[train_idx].copy(), Y[test_idx]
-    #     X_train = X[train_idx].copy()
-    #     y_train = Y_labels[train_idx].copy()
-    #     scaler = StandardScaler()
-    #     scaler.fit(X_train)
-    #     X_train = scaler.transform(X_train)
-    #     # X_test = scaler.transform(X_test)
-    #     clf.fit(X_train, y_train)
-    #     for index in test_idx:
-    #         x_in = scaler.transform(X[index])
-    #         x_in = x_in.reshape(1, -1)
-    #         y_in = Y[index]
-    #         y_pred = clf.predict(x_in)
-    #         fn = y_in['filename']
-    #         if fn not in master_prediction_list:
-    #             master_prediction_list[fn] = {}
-    #         if y_in['name'] not in master_prediction_list[fn]:
-    #             master_prediction_list[fn][y_in['name']] = []
-    #         master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
-    #                                                         'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+    master_cm = np.zeros((2, 2))
+    for train_idx, test_idx in kf.split(X, Y_labels):
+        X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+        y_train, y_test = Y_labels[train_idx].copy(), Y_labels[test_idx]
+        scaler = StandardScaler()
+        scaler.fit(X_train)
+        X_train = scaler.transform(X_train)
+        X_test = scaler.transform(X_test)
+        clf.fit(X_train, y_train)
+        for index in test_idx:
+            x_in = scaler.transform(X[index])
+            x_in = x_in.reshape(1, -1)
+            y_in = Y[index]
+            y_pred = clf.predict(x_in)
+            fn = y_in['filename']
+            if fn not in master_prediction_list:
+                master_prediction_list[fn] = {}
+            if y_in['name'] not in master_prediction_list[fn]:
+                master_prediction_list[fn][y_in['name']] = []
+            master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
+                                                            'pos_y': y_in['pos_y'], 'value': y_pred[0]})
         #### END FOR OUT OF SAMPLE TIMELINE IMAGING ####
         # y_pred = clf.predict(X_test)
         # print 'Fold:', fold_count
@@ -1253,69 +1252,14 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
         # print 'Accuracy:', accuracy_score(y_test, y_pred)
         # cm = confusion_matrix(y_test, y_pred)
         # cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        # master_cm += cm
         # print cm
         # fold_count += 1
+    # print 'Averaged Confusion Matrix:'
+    # print master_cm/5
     out_dir = '/home/asilva/Data/predicted_annots'
     for filename in master_prediction_list.keys():
         pickle.dump(master_prediction_list[filename], open(os.path.join(out_dir, filename), 'wb'))
-    # X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=59)
-    # X_train, X_test, y_train, y_test = non_shuffling_train_test_split(X, Y, test_size=.2)
-
-    # scaler = StandardScaler()
-    # scaler.fit(X_train)
-    # X_train = scaler.transform(X_train)
-    # X_test = scaler.transform(X_test)
-    #
-    # clf.fit(X_train, y_train)
-    # TODO uncomment to save models
-    # joblib.dump(clf, model_name)
-    # joblib.dump(scaler, 'scaler.pkl')
-    # VISUALIZE FEATURE IMPORTANCE
-    # importances = clf.feature_importances_
-    # std = np.std([tree.feature_importances_ for tree in clf.estimators_],
-    #              axis=0)
-    # indices = np.argsort(importances)[::-1]
-    #
-    # # Print the feature ranking
-    # print("Feature ranking:")
-    # X = np.array(X)
-    # for f in range(X.shape[1]):
-    #     print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
-    #
-    # # Plot the feature importances of the forest
-    # plt.figure()
-    # plt.title("Feature importances")
-    # plt.bar(range(X.shape[1]), importances[indices],
-    #         color="r", yerr=std[indices], align="center")
-    # plt.xticks(range(X.shape[1]), indices)
-    # plt.xlim([-1, X.shape[1]])
-    # plt.show()
-    # END FEATURE IMPORTANCE VISUALIZATION
-    # TODO manual k-fold stuff, predict single file and propagate predictions.
-    last_prediction = -1
-    # y_pred = []
-    # for sample in X_test:
-    #     # predict, replace element[28] with prediction.
-    #     if use_prior:
-    #         sample[-1] = last_prediction
-    #     sample = np.reshape(sample, (1, -1))
-    #     prediction = clf.predict(sample)
-    #     last_prediction = prediction
-    #     y_pred.append(prediction)
-
-    # y_pred = clf.predict(X_test)
-    # print y_pred
-    # class_names = ['0', '1']
-    # my_matrix = confusion_matrix(y_test, y_pred)
-    # print my_matrix
-    # cnf_matrix = confusion_matrix(y_test, y_pred)
-    # np.set_printoptions(precision=2)
-    # plt.figure()
-    # plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
-    #                       title='Normalized confusion matrix')
-    #
-    # plt.show()
-    # print 'F1: ', f1_score(y_test, y_pred)
 
     return scaler
 
@@ -1607,8 +1551,8 @@ if __name__ == '__main__':
         adir = sys.argv[1]
     model_name = 'MLPrel2.pkl'
     use_prior = False
-    clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
-    # clf = MLPClassifier(max_iter=40000, tol=1e-4)
+    # clf = RandomForestClassifier(class_weight="balanced_subsample", n_estimators=20)
+    clf = MLPClassifier(max_iter=40000, tol=1e-4)
     # clf = KNeighborsClassifier()
     # clf = svm.SVC(decision_function_shape='ovo')
     scaler = train_binary_rel_cpm(model_name, use_prior, clf, dropout_val=0.75)
