@@ -30,9 +30,9 @@ def get_trial_pickles(trial_number, annotator):
     elif 'mlp' == annotator.lower():
         trial_pwd = os.path.join(base_path, 'separated', 'mlp_out_sample', 'trial'+str(trial_number))
     elif 'mlp_in_sample' == annotator.lower():
-        trial_pwd = os.path.join(base_path, 'mlp_in_sample', 'trial'+str(trial_number))
+        trial_pwd = os.path.join(base_path, 'separated', 'mlp_in_sample', 'trial'+str(trial_number))
     elif 'rf_in_sample' == annotator.lower():
-        trial_pwd = os.path.join(base_path, 'rf_in_sample', 'trial'+str(trial_number))
+        trial_pwd = os.path.join(base_path, 'separated', 'rf_in_sample', 'trial'+str(trial_number))
     elif 'rf' == annotator.lower():
         trial_pwd = os.path.join(base_path, 'separated', 'rf_out_sample', 'trial'+str(trial_number))
     elif 'ldcrf' == annotator.lower():
@@ -57,12 +57,12 @@ def get_trial_pickles(trial_number, annotator):
                         continue
 
                 # Binarize our labels (if using model predictions, assume already binarized)
-                if annotator.lower() == 'silva' or annotator.lower() == 'sid':
+                if annotator.lower() == 'silva' or annotator.lower() == 'sid':  # Manual annotations are [1, 2, 3, 4]
                     if label <= 2:
                         label = 0
                     else:
                         label = 1
-                elif annotator.lower() == 'auto':
+                elif annotator.lower() == 'auto':  # Auto annotations are [-1, 1]
                     if label < 0:
                         label = 0
                 timestamp_person_dict[piece['timestamp']] = label
@@ -148,8 +148,8 @@ def draw_timeline(annotator_name):
         auto_annots = get_trial_pickles(trial_id, 'auto')
         annotations = get_trial_pickles(trial_id, annotator_name)
         mlp_annotations = get_trial_pickles(trial_id, 'mlp')
-        # mlp_in_sample = get_trial_pickles(trial_id, 'mlp_in_sample')
-        # rf_in_sample = get_trial_pickles(trial_id, 'rf_in_sample')
+        mlp_in_sample = get_trial_pickles(trial_id, 'mlp_in_sample')
+        rf_in_sample = get_trial_pickles(trial_id, 'rf_in_sample')
         rf_annotations = get_trial_pickles(trial_id, 'rf')
         # ldcrf_annotations = get_trial_pickles(trial_id, 'ldcrf')
 
@@ -157,8 +157,8 @@ def draw_timeline(annotator_name):
             part_ground = []
             part_annots = []
             part_mlp = []
-            # part_mlp_in_sample = []
-            # part_rf_in_sample = []
+            part_mlp_in_sample = []
+            part_rf_in_sample = []
             part_rf = []
             # part_ldcrf = []
 
@@ -174,13 +174,13 @@ def draw_timeline(annotator_name):
                 for timestamp in annot_array.keys():
                     part_mlp.append({'timestamp': timestamp, 'value': annot_array[timestamp]})
 
-            # for annot_array in mlp_in_sample[participant]:
-            #     for timestamp in annot_array.keys():
-            #         part_mlp_in_sample.append({'timestamp': timestamp, 'value': annot_array[timestamp]})
-            #
-            # for annot_array in rf_in_sample[participant]:
-            #     for timestamp in annot_array.keys():
-            #         part_rf_in_sample.append({'timestamp': timestamp, 'value': annot_array[timestamp]})
+            for annot_array in mlp_in_sample[participant]:
+                for timestamp in annot_array.keys():
+                    part_mlp_in_sample.append({'timestamp': timestamp, 'value': annot_array[timestamp]})
+
+            for annot_array in rf_in_sample[participant]:
+                for timestamp in annot_array.keys():
+                    part_rf_in_sample.append({'timestamp': timestamp, 'value': annot_array[timestamp]})
 
             for annot_array in rf_annotations[participant]:
                 for timestamp in annot_array.keys():
@@ -193,8 +193,8 @@ def draw_timeline(annotator_name):
             part_ground = sorted(part_ground, key=lambda x: x['timestamp'])
             part_annots = sorted(part_annots, key=lambda x: x['timestamp'])
             part_mlp = sorted(part_mlp, key=lambda x: x['timestamp'])
-            # part_mlp_in_sample = sorted(part_mlp_in_sample, key=lambda x: x['timestamp'])
-            # part_rf_in_sample = sorted(part_rf_in_sample, key=lambda x: x['timestamp'])
+            part_mlp_in_sample = sorted(part_mlp_in_sample, key=lambda x: x['timestamp'])
+            part_rf_in_sample = sorted(part_rf_in_sample, key=lambda x: x['timestamp'])
             part_rf = sorted(part_rf, key=lambda x: x['timestamp'])
             # part_ldcrf = sorted(part_ldcrf, key=lambda x: x['timestamp'])
             print 'Trial: ', trial_id
@@ -207,12 +207,12 @@ def draw_timeline(annotator_name):
                                    box_height=box_height, label='Ground Truth')
             draw_int_timeline(img, part_annots, starting_line=4, box_width=box_width,
                                    box_height=box_height, label='Human')
-            # draw_int_timeline(img, part_mlp_in_sample, starting_line=7, box_width=box_width,
-            #                        box_height=box_height, label='MLP (in sample)')
+            draw_int_timeline(img, part_mlp_in_sample, starting_line=7, box_width=box_width,
+                                   box_height=box_height, label='MLP (in sample)')
             draw_int_timeline(img, part_mlp, starting_line=10, box_width=box_width,
                                    box_height=box_height, label='MLP (out sample)')
-            # draw_int_timeline(img, part_rf_in_sample, starting_line=13, box_width=box_width,
-            #                        box_height=box_height, label='RF (in sample)')
+            draw_int_timeline(img, part_rf_in_sample, starting_line=13, box_width=box_width,
+                                   box_height=box_height, label='RF (in sample)')
             draw_int_timeline(img, part_rf, starting_line=16, box_width=box_width,
                                    box_height=box_height, label='RF (out sample)')
             # draw_ldcrf(img, part_ldcrf, part_ground, starting_line=19, box_width=box_width,

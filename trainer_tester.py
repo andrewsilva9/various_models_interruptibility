@@ -1203,48 +1203,50 @@ def train_binary_rel_cpm(model_name, use_prior, clf, dropout_val = 0.75):
     # TODO uncomment to load and test models
     # clf = joblib.load('MLPrel.pkl')
     # scaler = joblib.load('scaler.pkl')
+    master_prediction_list = {}
 
     #### BELOW IS FOR IN SAMPLE TIMELINE IMAGING ####
-    # scaler = StandardScaler()
-    # scaler.fit_transform(X)
-    # clf.fit(X, Y_labels)
-    master_prediction_list = {}
-    # for index in range(len(X)):
-    #     x_in = X[index]
-    #     x_in = x_in.reshape(1, -1)
-    #     y_in = Y[index]
-    #     y_pred = clf.predict(x_in)
-    #     fn = y_in['filename']
-    #     if fn not in master_prediction_list:
-    #         master_prediction_list[fn] = {}
-    #     if y_in['name'] not in master_prediction_list[fn]:
-    #         master_prediction_list[fn][y_in['name']] = []
-    #     master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
-    #                                                     'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+    scaler = StandardScaler()
+    scaler.fit_transform(X)
+    clf.fit(X, Y_labels)
+    for index in range(len(X)):
+        x_in = X[index]
+        x_in = x_in.reshape(1, -1)
+        y_in = Y[index]
+        y_pred = clf.predict(x_in)
+        fn = y_in['filename']
+        if fn not in master_prediction_list:
+            master_prediction_list[fn] = {}
+        if y_in['name'] not in master_prediction_list[fn]:
+            master_prediction_list[fn][y_in['name']] = []
+        master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
+                                                        'pos_y': y_in['pos_y'], 'value': y_pred[0]})
     #### END FOR IN SAMPLE TIMELINE IMAGING ####
 
-    for train_idx, test_idx in kf.split(X, Y_labels):
-        # X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
-        # y_train, y_test = Y_labels[train_idx].copy(), Y[test_idx]
-        X_train = X[train_idx].copy()
-        y_train = Y_labels[train_idx].copy()
-        scaler = StandardScaler()
-        scaler.fit(X_train)
-        X_train = scaler.transform(X_train)
-        # X_test = scaler.transform(X_test)
-        clf.fit(X_train, y_train)
-        for index in test_idx:
-            x_in = scaler.transform(X[index])
-            x_in = x_in.reshape(1, -1)
-            y_in = Y[index]
-            y_pred = clf.predict(x_in)
-            fn = y_in['filename']
-            if fn not in master_prediction_list:
-                master_prediction_list[fn] = {}
-            if y_in['name'] not in master_prediction_list[fn]:
-                master_prediction_list[fn][y_in['name']] = []
-            master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
-                                                            'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+    #### BELOW IS FOR OUT OF SAMPLE TIMELINE IMAGING ####
+    # for train_idx, test_idx in kf.split(X, Y_labels):
+    #     # X_train, X_test = X[train_idx].copy(), X[test_idx].copy()
+    #     # y_train, y_test = Y_labels[train_idx].copy(), Y[test_idx]
+    #     X_train = X[train_idx].copy()
+    #     y_train = Y_labels[train_idx].copy()
+    #     scaler = StandardScaler()
+    #     scaler.fit(X_train)
+    #     X_train = scaler.transform(X_train)
+    #     # X_test = scaler.transform(X_test)
+    #     clf.fit(X_train, y_train)
+    #     for index in test_idx:
+    #         x_in = scaler.transform(X[index])
+    #         x_in = x_in.reshape(1, -1)
+    #         y_in = Y[index]
+    #         y_pred = clf.predict(x_in)
+    #         fn = y_in['filename']
+    #         if fn not in master_prediction_list:
+    #             master_prediction_list[fn] = {}
+    #         if y_in['name'] not in master_prediction_list[fn]:
+    #             master_prediction_list[fn][y_in['name']] = []
+    #         master_prediction_list[fn][y_in['name']].append({'timestamp': y_in['timestamp'],
+    #                                                         'pos_y': y_in['pos_y'], 'value': y_pred[0]})
+        #### END FOR OUT OF SAMPLE TIMELINE IMAGING ####
         # y_pred = clf.predict(X_test)
         # print 'Fold:', fold_count
         # print 'F1:', f1_score(y_test, y_pred)
